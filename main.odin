@@ -31,7 +31,7 @@ main :: proc() {
     window := Window {
         pos  = {-1, -1},
         size = winsize,
-        zoom = 100
+        zoom = 50
     }
 
 
@@ -41,6 +41,7 @@ main :: proc() {
     get_time :: proc() -> f64 { return f64(sdl.GetPerformanceCounter()) / f64(sdl.GetPerformanceFrequency()) }
 
     last_frame_time := get_time()
+    mousedown := false
     done := false
     for !done {
         time := get_time()
@@ -52,7 +53,8 @@ main :: proc() {
         sdl.RenderClear(renderer)
 
         sdl.SetRenderDrawColor(renderer, 0, 0, 0, 255)
-        draw_grid(renderer, window, 1)
+        grid_interval := f32(1)
+        draw_grid(renderer, window, grid_interval)
         sdl.SetRenderDrawColor(renderer, 225, 20, 30, 255)
         draw_sine(renderer, window)
 
@@ -69,6 +71,16 @@ main :: proc() {
                     #partial switch e.key.keysym.sym {
                         case .Q:
                             done = true
+                    }
+                case .MOUSEBUTTONDOWN:
+                    mousedown = true
+                case .MOUSEBUTTONUP:
+                    mousedown = false
+                case .MOUSEMOTION:
+                    if mousedown {
+                        x_motion := f32(e.motion.xrel) / window.zoom
+                        y_motion := f32(e.motion.yrel) / window.zoom
+                        window.pos -= { x_motion, -y_motion }
                     }
             }
         }
@@ -102,29 +114,56 @@ bounce_rect :: proc(renderer: ^sdl.Renderer, rect: ^sdl.Rect, vel: ^[2]f64, colo
 }
 
 draw_sine :: proc(renderer: ^sdl.Renderer, window: Window) {
-    end : [2]f32 = window.pos + linalg.to_f32(window.size)/window.zoom
-    range : [2]f32 = end - window.pos
-    prev_screen_fx := window.pos.y
+    fx := math.sin(f32(-1))
+    prev_screen_y := real_y_to_screen_y(fx, window)
     for screen_x in 0..<window.size.x {
         x := window.pos.x + f32(screen_x)/window.zoom
-        fx := math.sin(x)
-        screen_fx := (fx - window.pos.y) * window.zoom
-        sdl.RenderDrawLineF(renderer, f32(screen_x-1), f32(window.size.y) - prev_screen_fx, f32(screen_x), f32(window.size.y) - screen_fx)
+        fx = math.sin(x)
+        screen_y := real_y_to_screen_y(fx, window)
+        sdl.RenderDrawLineF(renderer, f32(screen_x-1), prev_screen_y, f32(screen_x), screen_y)
 
-        prev_screen_fx = screen_fx
+        prev_screen_y = screen_y
     }
 }
 
+real_to_screen :: proc(point: [2]f32, window: Window) -> [2]f32 {
+    return { (point.x - window.pos.x) * window.zoom, f32(window.size.y) - (point.y - window.pos.y)*window.zoom }
+}
+
+real_x_to_screen_x :: proc(x: f32, window: Window) -> f32 {
+    return f32(window.size.x) - (x - window.pos.x)*window.zoom
+}
+
+real_y_to_screen_y :: proc(y: f32, window: Window) -> f32 {
+    return f32(window.size.y) - (y - window.pos.y)*window.zoom
+}
+
 draw_grid :: proc(renderer: ^sdl.Renderer, window: Window, interval: f32) {
+    draw_axes(renderer, window)
     num_lines := (linalg.to_f32(window.size)/interval)/window.zoom
     screen_interval := interval * window.zoom
-    offset := linalg.ceil(window.pos) - window.pos
-    for x in window.pos.x..<num_lines.x {
-        x_line := i32(offset.x*window.zoom + x*screen_interval)
-        sdl.RenderDrawLine(renderer, x_line, window.size.y, x_line, 0)
+    mod_pos := linalg.mod(window.pos, interval)
+    offset := interval - mod_pos
+    for line in 0..<num_lines.x {
+        x_line := (offset.x*window.zoom + line*screen_interval)
+        sdl.RenderDrawLine(renderer, i32(x_line), window.size.y, i32(x_line), 0)
     }
-    for y in window.pos.y..<num_lines.y {
-        y_line := window.size.y - i32(offset.y*window.zoom + y*screen_interval)
-        sdl.RenderDrawLine(renderer, window.size.x, y_line, 0, y_line)
+    for line in 0..<num_lines.y {
+        y_line := f32(window.size.y) - (offset.y*window.zoom + line*screen_interval)
+        sdl.RenderDrawLine(renderer, window.size.x, i32(y_line), 0, i32(y_line))
+    }
+}
+
+draw_axes :: proc(renderer: ^sdl.Renderer, window: Window) {
+    screen_pos := real_to_screen({}, window)
+    if screen_pos.x >=0 && screen_pos.x < f32(window.size.x) {
+        sdl.RenderDrawLineF(renderer, screen_pos.x, 0, screen_pos.x, f32(window.size.y))
+        sdl.RenderDrawLineF(renderer, screen_pos.x+1, 0, screen_pos.x+1, f32(window.size.y))
+        sdl.RenderDrawLineF(renderer, screen_pos.x-1, 0, screen_pos.x-1, f32(window.size.y))
+    }
+    if screen_pos.y >=0 && screen_pos.y < f32(window.size.y) {
+        sdl.RenderDrawLineF(renderer, 0, screen_pos.y,   f32(window.size.x), screen_pos.y)
+        sdl.RenderDrawLineF(renderer, 0, screen_pos.y+1, f32(window.size.x), screen_pos.y+1)
+        sdl.RenderDrawLineF(renderer, 0, screen_pos.y-1, f32(window.size.x), screen_pos.y-1)
     }
 }
