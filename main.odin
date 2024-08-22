@@ -7,6 +7,8 @@ import sdl "vendor:sdl2"
 winsize : [2]i32 : { 800, 600 }
 gridsize : [2]i32 : winsize
 
+min_zoom :: 5
+
 Window :: struct {
     pos: [2]f32,
     size: [2]i32,
@@ -81,6 +83,11 @@ main :: proc() {
                         x_motion := f32(e.motion.xrel) / window.zoom
                         y_motion := f32(e.motion.yrel) / window.zoom
                         window.pos -= { x_motion, -y_motion }
+                    }
+                case .MOUSEWHEEL:
+                    new_zoom := window.zoom + f32(5*e.wheel.y)
+                    if new_zoom > min_zoom {
+                        window.zoom = new_zoom
                     }
             }
         }
