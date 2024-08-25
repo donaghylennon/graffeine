@@ -12,3 +12,23 @@ off at win size
 - UI to select a function
 - Or type a function, allowing more complex functions, and parse this input
 - Multiple graphs, different colors, custom colors
+- Increase/decrease grid granularity based on zoom level
+
+
+## Function Parsing
+
+expr := function-call | arithmetic | var | constant
+var := name
+constant := [1-9]+
+function-call := name ( expr )
+arithmetic := expr arithmetic-operator expr
+arithmetic-operator := + | - | * | / | ^
+
+
+expr := sum
+sum := factor ( '+' | '-' factor )*
+factor := power ( '*' | '/' power )*
+power := primary ( '^' primary )*
+primary := function-call | constant | expr
+function-call := identifier ( '(' expr ')' )*
+identifier := ( 'A'..'Z' | 'a'..'z' | '_' )+

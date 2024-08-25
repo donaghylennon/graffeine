@@ -4,7 +4,9 @@ import "core:math"
 import "core:math/linalg"
 import sdl "vendor:sdl2"
 
-winsize : [2]i32 : { 800, 600 }
+import "parser"
+
+winsize : [2]i32 : { 1200, 800 }
 gridsize : [2]i32 : winsize
 
 min_zoom :: 5
@@ -29,6 +31,10 @@ main :: proc() {
     vel := [2]f64 { 200, 200 }
     color := [4]u8 { 255, 255, 255, 255 }
 
+    ast, ok := parser.parse("sin(x*2) + 30")
+    if ok {
+        parser.print_ast(ast)
+    }
 
     window := Window {
         pos  = {-1, -1},
