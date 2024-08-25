@@ -190,3 +190,24 @@ parse :: proc(input: string) -> (expr: Expr, ok: bool) {
     next(&parser)
     return parse_expr(&parser)
 }
+
+destroy_ast :: proc(ast: Expr) {
+    switch expr in ast {
+        case FunctionCall:
+            if expr.arg != nil {
+                destroy_ast(expr.arg^)
+                free(expr.arg)
+            }
+        case ArithmeticExpr:
+            if expr.primary_operand != nil {
+                destroy_ast(expr.primary_operand^)
+                free(expr.primary_operand)
+            }
+            if expr.secondary_operand != nil {
+                destroy_ast(expr.secondary_operand^)
+                free(expr.secondary_operand)
+            }
+        case Var:
+        case Constant:
+    }
+}

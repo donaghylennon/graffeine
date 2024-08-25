@@ -35,6 +35,7 @@ main :: proc() {
     if ok {
         parser.print_ast(ast)
     }
+    defer parser.destroy_ast(ast)
 
     window := Window {
         pos  = {-1, -1},
