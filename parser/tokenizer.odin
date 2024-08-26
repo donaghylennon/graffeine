@@ -49,17 +49,6 @@ next_rune :: proc(tokenizer: ^Tokenizer) -> rune {
     return tokenizer.rune
 }
 
-//peek :: proc(tokenizer: ^Tokenizer) -> rune {
-//    if tokenizer.src_pos+1 >= len(tokenizer.data) {
-//        return utf8.RUNE_EOF
-//    }
-//    rune := rune(tokenizer.data[tokenizer.src_pos+1])
-//    if rune >= utf8.RUNE_SELF {
-//        panic("Non ascii text entered")
-//    }
-//    return rune
-//}
-
 skip_whitespace :: proc(tokenizer: ^Tokenizer) {
     end := false
     for !end && tokenizer.src_pos < len(tokenizer.data) {
@@ -119,18 +108,6 @@ get_token :: proc(tokenizer: ^Tokenizer) -> Token {
     }
 
     token.text = tokenizer.data[token_pos:tokenizer.src_pos]
-    fmt.printfln("token text: %v", token.text)
 
     return token
 }
-
-//main :: proc() {
-//    test := "sin(x) - 12"
-//    tk: Tokenizer
-//    tokenizer_init(&tk, test)
-//    result: Token
-//    for result.kind != .EOF {
-//        result = get_token(&tk)
-//        fmt.printfln("result: %v", result)
-//    }
-//}
