@@ -5,3 +5,5 @@ Simple graphing calculator style app inspired by [Desmos](https://www.desmos.com
 - Click and drag to navigate
 - Zoom in and out with the mouse scroll wheel
 - Enter a function of x to plot its graph
+
+[example1](screenshots/example1.png)
