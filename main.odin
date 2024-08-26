@@ -46,10 +46,7 @@ main :: proc() {
     vel := [2]f64 { 200, 200 }
     color := [4]u8 { 255, 255, 255, 255 }
 
-    ast, ok := parser.parse("sin(x*2) + 30")
-    if ok {
-        parser.print_ast(ast)
-    }
+    ast, ok := parser.parse("x^2")
     defer parser.destroy_ast(ast)
 
     font := ttf.OpenFont("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 24)
@@ -66,14 +63,16 @@ main :: proc() {
     }
 
     fbox_builder := strings.builder_make()
-    defer strings.builder_destroy(&fbox_builder)
+    strings.write_string(&fbox_builder, "x^2")
     fbox := FunctionBox {
         pos = {0, window.size.y - 50},
-        size = {250, 50},
+        size = {500, 50},
         texture = nil,
         text_width = 0,
         text = fbox_builder
     }
+    defer function_box_destroy(&fbox)
+    function_box_update(&fbox, renderer, font)
 
 
     fps :: 60
@@ -83,6 +82,7 @@ main :: proc() {
 
     last_frame_time := get_time()
     mousedown := false
+    update_graph := true
     done := false
     for !done {
         time := get_time()
@@ -97,7 +97,12 @@ main :: proc() {
         grid_interval := f32(1)
         draw_grid(renderer, window, grid_interval)
         sdl.SetRenderDrawColor(renderer, 225, 20, 30, 255)
-        draw_sine(renderer, window)
+
+        if update_graph {
+            update_ast(&ast, &fbox)
+            update_graph = false
+        }
+        draw_graph(renderer, window, ast)
 
         draw_function_box(renderer, fbox)
 
@@ -108,7 +113,7 @@ main :: proc() {
         sdl.StartTextInput()
         defer sdl.StopTextInput()
         e: sdl.Event
-        for sdl.PollEvent(&e) {
+        for !done && sdl.PollEvent(&e) {
             #partial switch e.type {
                 case .QUIT:
                     done = true
@@ -119,6 +124,7 @@ main :: proc() {
                         case .BACKSPACE:
                             strings.pop_rune(&fbox.text)
                             function_box_update(&fbox, renderer, font)
+                            update_graph = true
                     }
                 case .MOUSEBUTTONDOWN:
                     mousedown = true
@@ -137,9 +143,10 @@ main :: proc() {
                     }
                 case .TEXTINPUT:
                     input := cstring(raw_data(e.text.text[:]))
-                    if strings.builder_len(fbox.text) + len(input) < 20 {
+                    if strings.builder_len(fbox.text) + len(input) < 50 {
                         strings.write_string(&fbox.text, string(input))
                         function_box_update(&fbox, renderer, font)
+                        update_graph = true
                     }
             }
         }
@@ -176,6 +183,22 @@ draw_sine :: proc(renderer: ^sdl.Renderer, window: Window) {
     for screen_x in 0..<window.size.x {
         x := window.pos.x + f32(screen_x)/window.zoom
         fx = math.sin(x)
+        screen_y := real_y_to_screen_y(fx, window)
+        sdl.RenderDrawLineF(renderer, f32(screen_x-1), prev_screen_y, f32(screen_x), screen_y)
+
+        prev_screen_y = screen_y
+    }
+}
+
+draw_graph :: proc(renderer: ^sdl.Renderer, window: Window, ast: parser.Expr) {
+    fx := math.sin(f32(-1))
+    prev_screen_y := real_y_to_screen_y(fx, window)
+    for screen_x in 0..<window.size.x {
+        x := window.pos.x + f32(screen_x)/window.zoom
+        fx, ok := evaluate_function(ast, x)
+        if !ok {
+            return
+        }
         screen_y := real_y_to_screen_y(fx, window)
         sdl.RenderDrawLineF(renderer, f32(screen_x-1), prev_screen_y, f32(screen_x), screen_y)
 
@@ -227,7 +250,7 @@ draw_axes :: proc(renderer: ^sdl.Renderer, window: Window) {
 
 draw_function_box :: proc(renderer: ^sdl.Renderer, fbox: FunctionBox) {
     rect := sdl.Rect { fbox.pos.x, fbox.pos.y, fbox.size.x, fbox.size.y }
-    sdl.SetRenderDrawColor(renderer, 240, 240, 200, 255)
+    sdl.SetRenderDrawColor(renderer, 130, 170, 240, 255)
     sdl.RenderFillRect(renderer, &rect)
     sdl.SetRenderDrawColor(renderer, 0, 0, 0, 255)
     sdl.RenderDrawRect(renderer, &rect)
@@ -251,4 +274,63 @@ function_box_update :: proc(fbox: ^FunctionBox, renderer: ^sdl.Renderer, font: ^
     fbox.texture = sdl.CreateTextureFromSurface(renderer, surface)
     fbox.text_width = surface.w
     sdl.FreeSurface(surface)
+}
+
+function_box_destroy :: proc(fbox: ^FunctionBox) {
+    if fbox.texture != nil {
+        sdl.DestroyTexture(fbox.texture)
+        fbox.texture = nil
+    }
+    strings.builder_destroy(&fbox.text)
+}
+
+evaluate_function :: proc(ast: parser.Expr, x: f32) -> (fx: f32, ok: bool) {
+    switch expr in ast {
+        case parser.FunctionCall:
+            arg := evaluate_function(expr.arg^, x) or_return
+            switch expr.name {
+                case "sin":
+                    return math.sin(arg), true
+                case "cos":
+                    return math.cos(arg), true
+                case "tan":
+                    return math.tan(arg), true
+                case "sqrt":
+                    return math.sqrt(arg), true
+                case "abs":
+                    return math.abs(arg), true
+                case:
+                    return 0, false
+            }
+        case parser.ArithmeticExpr:
+            primary_operand := evaluate_function(expr.primary_operand^, x) or_return
+            secondary_operand := evaluate_function(expr.secondary_operand^, x) or_return
+            switch expr.operator {
+                case .PLUS:
+                    return primary_operand + secondary_operand, true
+                case .MINUS:
+                    return primary_operand - secondary_operand, true
+                case .MUL:
+                    return primary_operand * secondary_operand, true
+                case .DIV:
+                    return primary_operand / secondary_operand, true
+                case .POW:
+                    return math.pow(primary_operand, secondary_operand), true
+            }
+        case parser.Var:
+            if expr.name == "x" {
+                return x, true
+            } else {
+                return 0, false
+            }
+        case parser.Constant:
+            return f32(expr), true
+    }
+    return 0, false
+}
+
+update_ast :: proc(ast: ^parser.Expr, fbox: ^FunctionBox) {
+    parser.destroy_ast(ast^)
+    ok: bool
+    ast^, ok = parser.parse(strings.to_string(fbox.text))
 }
