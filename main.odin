@@ -1,8 +1,12 @@
 package main
 
+import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+import "core:strings"
+import "core:os"
 import sdl "vendor:sdl2"
+import ttf "vendor:sdl2/ttf"
 
 import "parser"
 
@@ -17,8 +21,19 @@ Window :: struct {
     zoom: f32
 }
 
+FunctionBox :: struct {
+    pos: [2]i32,
+    size: [2]i32,
+    texture: ^sdl.Texture,
+    text_width: i32,
+    text: strings.Builder
+}
+
 main :: proc() {
     sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS)
+    defer sdl.Quit()
+    ttf.Init()
+    defer ttf.Quit()
 
     win := sdl.CreateWindow("Graffeine", sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED, winsize.x, winsize.y, sdl.WINDOW_SHOWN)
     defer sdl.DestroyWindow(win)
@@ -37,10 +52,27 @@ main :: proc() {
     }
     defer parser.destroy_ast(ast)
 
+    font := ttf.OpenFont("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 24)
+    if font == nil {
+        fmt.eprintln("Error loading font")
+        os.exit(1)
+    }
+    defer ttf.CloseFont(font)
+
     window := Window {
         pos  = {-1, -1},
         size = winsize,
         zoom = 50
+    }
+
+    fbox_builder := strings.builder_make()
+    defer strings.builder_destroy(&fbox_builder)
+    fbox := FunctionBox {
+        pos = {0, window.size.y - 50},
+        size = {250, 50},
+        texture = nil,
+        text_width = 0,
+        text = fbox_builder
     }
 
 
@@ -67,10 +99,14 @@ main :: proc() {
         sdl.SetRenderDrawColor(renderer, 225, 20, 30, 255)
         draw_sine(renderer, window)
 
+        draw_function_box(renderer, fbox)
+
 
         sdl.RenderPresent(renderer)
 
 
+        sdl.StartTextInput()
+        defer sdl.StopTextInput()
         e: sdl.Event
         for sdl.PollEvent(&e) {
             #partial switch e.type {
@@ -78,8 +114,11 @@ main :: proc() {
                     done = true
                 case .KEYDOWN:
                     #partial switch e.key.keysym.sym {
-                        case .Q:
+                        case .ESCAPE:
                             done = true
+                        case .BACKSPACE:
+                            strings.pop_rune(&fbox.text)
+                            function_box_update(&fbox, renderer, font)
                     }
                 case .MOUSEBUTTONDOWN:
                     mousedown = true
@@ -96,11 +135,15 @@ main :: proc() {
                     if new_zoom > min_zoom {
                         window.zoom = new_zoom
                     }
+                case .TEXTINPUT:
+                    input := cstring(raw_data(e.text.text[:]))
+                    if strings.builder_len(fbox.text) + len(input) < 20 {
+                        strings.write_string(&fbox.text, string(input))
+                        function_box_update(&fbox, renderer, font)
+                    }
             }
         }
     }
-
-    sdl.Quit()
 }
 
 bounce_rect :: proc(renderer: ^sdl.Renderer, rect: ^sdl.Rect, vel: ^[2]f64, color: ^[4]u8, dt: f64) {
@@ -180,4 +223,32 @@ draw_axes :: proc(renderer: ^sdl.Renderer, window: Window) {
         sdl.RenderDrawLineF(renderer, 0, screen_pos.y+1, f32(window.size.x), screen_pos.y+1)
         sdl.RenderDrawLineF(renderer, 0, screen_pos.y-1, f32(window.size.x), screen_pos.y-1)
     }
+}
+
+draw_function_box :: proc(renderer: ^sdl.Renderer, fbox: FunctionBox) {
+    rect := sdl.Rect { fbox.pos.x, fbox.pos.y, fbox.size.x, fbox.size.y }
+    sdl.SetRenderDrawColor(renderer, 240, 240, 200, 255)
+    sdl.RenderFillRect(renderer, &rect)
+    sdl.SetRenderDrawColor(renderer, 0, 0, 0, 255)
+    sdl.RenderDrawRect(renderer, &rect)
+
+    w := fbox.text_width
+    text_rect := sdl.Rect { fbox.pos.x, fbox.pos.y, w, fbox.size.y}
+    sdl.RenderCopy(renderer, fbox.texture, nil, &text_rect)
+}
+
+function_box_update :: proc(fbox: ^FunctionBox, renderer: ^sdl.Renderer, font: ^ttf.Font) {
+    if fbox.texture != nil {
+        sdl.DestroyTexture(fbox.texture)
+    }
+    text: cstring
+    if strings.builder_len(fbox.text) > 0 {
+        text = strings.to_cstring(&fbox.text)
+    } else {
+        text = " "
+    }
+    surface := ttf.RenderText_Solid(font, text, {0,0,0,255})
+    fbox.texture = sdl.CreateTextureFromSurface(renderer, surface)
+    fbox.text_width = surface.w
+    sdl.FreeSurface(surface)
 }
