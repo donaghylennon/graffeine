@@ -2,6 +2,7 @@ package parser
 
 import "core:strconv"
 import "core:fmt"
+import "core:math"
 
 Expr :: union {
     FunctionCall,
@@ -210,4 +211,49 @@ destroy_ast :: proc(ast: Expr) {
         case Var:
         case Constant:
     }
+}
+
+evaluate_function :: proc(ast: Expr, x: f32) -> (fx: f32, ok: bool) {
+    switch expr in ast {
+        case FunctionCall:
+            arg := evaluate_function(expr.arg^, x) or_return
+            switch expr.name {
+                case "sin":
+                    return math.sin(arg), true
+                case "cos":
+                    return math.cos(arg), true
+                case "tan":
+                    return math.tan(arg), true
+                case "sqrt":
+                    return math.sqrt(arg), true
+                case "abs":
+                    return math.abs(arg), true
+                case:
+                    return 0, false
+            }
+        case ArithmeticExpr:
+            primary_operand := evaluate_function(expr.primary_operand^, x) or_return
+            secondary_operand := evaluate_function(expr.secondary_operand^, x) or_return
+            switch expr.operator {
+                case .PLUS:
+                    return primary_operand + secondary_operand, true
+                case .MINUS:
+                    return primary_operand - secondary_operand, true
+                case .MUL:
+                    return primary_operand * secondary_operand, true
+                case .DIV:
+                    return primary_operand / secondary_operand, true
+                case .POW:
+                    return math.pow(primary_operand, secondary_operand), true
+            }
+        case Var:
+            if expr.name == "x" {
+                return x, true
+            } else {
+                return 0, false
+            }
+        case Constant:
+            return f32(expr), true
+    }
+    return 0, false
 }

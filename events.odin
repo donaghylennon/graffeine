@@ -3,9 +3,10 @@ package main
 import "core:strings"
 import sdl "vendor:sdl2"
 
+import "parser"
 import "render"
 
-process_events :: proc(w: ^render.Window, fbox: ^render.FunctionBox) {
+process_events :: proc(w: ^render.Window, sidebar: ^render.SideBar, fbox: ^render.FunctionBox, asts: ^[dynamic]parser.Expr) {
     sdl.StartTextInput()
     defer sdl.StopTextInput()
     e: sdl.Event
@@ -24,6 +25,11 @@ process_events :: proc(w: ^render.Window, fbox: ^render.FunctionBox) {
             }
         case .MOUSEBUTTONDOWN:
             w.mousedown = true
+            mousepos: [2]i32
+            sdl.GetMouseState(&mousepos.x, &mousepos.y)
+            if (render.sidebar_process_click(sidebar, mousepos, asts)) {
+                w.mousedown = false
+            }
         case .MOUSEBUTTONUP:
             w.mousedown = false
         case .MOUSEMOTION:
