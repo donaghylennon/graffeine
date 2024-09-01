@@ -11,8 +11,22 @@ off at win size
 
 - UI to select a function
 - Or type a function, allowing more complex functions, and parse this input
+
 - Multiple graphs, different colors, custom colors
 - Increase/decrease grid granularity based on zoom level
+- Display tick numbers on axes
+- Draw functions of y
+- Multi-argument functions
+- Variable definitions and value sliders
+
+- Improve visuals:
+    - Better text rendering
+    - Thicker lines
+    - Prettier UI elements
+    - Click animations on UI elements
+
+- Points/vectors and variables/expressions
+- Radial functions/polar coords
 
 
 ## Function Parsing
