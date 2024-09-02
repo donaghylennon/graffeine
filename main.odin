@@ -9,8 +9,6 @@ winsize : [2]i32 : { 1900, 1000 }
 gridsize : [2]i32 : winsize
 grid_interval :: f32(1)
 
-min_zoom :: 5
-
 main :: proc() {
     render.init()
     defer render.quit()
@@ -20,9 +18,7 @@ main :: proc() {
 
     ast, ok := parser.parse("x^2")
 
-    sidebar := render.sidebar_create(500, winsize)
-    defer render.sidebar_destroy(sidebar)
-    render.function_box_update(&sidebar.function_boxes[sidebar.selected], window)
+    sidebar := &window.sidebar
 
     asts := make([dynamic]parser.Expr)
     defer delete(asts)
@@ -41,27 +37,10 @@ main :: proc() {
         if (dt < frame_time) do continue
         last_frame_time = render.get_time()
 
-        update_ast(&asts[sidebar.selected], &sidebar.function_boxes[sidebar.selected])
+        render.draw_window(window, asts)
 
-        render.clear(window)
-
-        render.draw_grid(window, grid_interval)
-        for ast in asts {
-            render.draw_graph(window, ast)
-        }
-        render.draw_sidebar(window, sidebar)
-        render.present(window)
-
-        process_events(&window, &sidebar, &sidebar.function_boxes[sidebar.selected], &asts)
+        process_events(&window, &asts)
     }
-}
-
-update_ast :: proc(ast: ^parser.Expr, fbox: ^render.FunctionBox) {
-    if !fbox.changed do return
-    fbox.changed = false
-    parser.destroy_ast(ast^)
-    ok: bool
-    ast^, ok = parser.parse(strings.to_string(fbox.text))
 }
 
 destroy_asts :: proc(asts: [dynamic]parser.Expr) {

@@ -29,6 +29,16 @@ get_time :: proc() -> f64 {
     return f64(sdl.GetPerformanceCounter()) / f64(sdl.GetPerformanceFrequency())
 }
 
+draw_window :: proc(w: Window, asts: [dynamic]parser.Expr) {
+    clear(w)
+    draw_grid(w, 1)
+    for ast in asts {
+        draw_graph(w, ast)
+    }
+    draw_sidebar(w, w.sidebar)
+    present(w)
+}
+
 draw_graph :: proc(w: Window, ast: parser.Expr) {
     sdl.SetRenderDrawColor(w.sdl_renderer, 225, 20, 30, 255)
     prev_screen_y := f32(0)

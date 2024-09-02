@@ -17,7 +17,8 @@ Window :: struct {
     size: [2]i32,
     zoom: f32,
     should_close: bool,
-    mousedown: bool
+    mousedown: bool,
+    sidebar: SideBar
 }
 
 SideBar :: struct {
@@ -34,7 +35,6 @@ FunctionBox :: struct {
     close_button: struct { pos: [2]i32, size: i32 },
     texture: ^sdl.Texture,
     text_width: i32,
-    changed: bool,
     text: strings.Builder
 }
 
@@ -47,7 +47,7 @@ create_window :: proc(winsize: [2]i32, pos: [2]f32, zoom: f32) -> Window {
         os.exit(1)
     }
 
-    return Window {
+    w := Window {
         sdl_window = win,
         sdl_renderer = ren,
         sdl_font = font,
@@ -55,14 +55,18 @@ create_window :: proc(winsize: [2]i32, pos: [2]f32, zoom: f32) -> Window {
         size = winsize,
         zoom = zoom,
         should_close = false,
-        mousedown = false
+        mousedown = false,
+        sidebar = sidebar_create(winsize.x/4, winsize)
     }
+    function_box_update(&w.sidebar.function_boxes[w.sidebar.selected], w)
+    return w
 }
 
 destroy_window :: proc(w: ^Window) {
     ttf.CloseFont(w.sdl_font)
     sdl.DestroyRenderer(w.sdl_renderer)
     sdl.DestroyWindow(w.sdl_window)
+    sidebar_destroy(w.sidebar)
     w.sdl_font = nil
     w.sdl_renderer = nil
     w.sdl_window = nil
@@ -173,7 +177,6 @@ function_box_create :: proc(pos, size: [2]i32, text: string) -> FunctionBox {
         },
         texture = nil,
         text_width = 0,
-        changed = false,
         text = builder
     }
 }
@@ -212,4 +215,60 @@ real_x_to_screen_x :: proc(x: f32, window: Window) -> f32 {
 
 real_y_to_screen_y :: proc(y: f32, window: Window) -> f32 {
     return f32(window.size.y) - (y - window.pos.y)*window.zoom
+}
+
+window_process_mousemotion :: proc(w: ^Window, x, y: i32) {
+    if w.mousedown {
+        x_motion := f32(x) / w.zoom
+        y_motion := f32(y) / w.zoom
+        w.pos -= {x_motion, -y_motion}
+    }
+}
+
+window_process_textinput :: proc(w: ^Window, asts: ^[dynamic]parser.Expr, text: cstring) {
+    selected := w.sidebar.selected
+    fbox := &w.sidebar.function_boxes[selected]
+    if strings.builder_len(fbox.text) + len(text) < 50 {
+        strings.write_string(&fbox.text, string(text))
+        function_box_update(fbox, w^)
+
+        ast := &asts[selected]
+        update_ast(ast, strings.to_string(fbox.text))
+    }
+}
+
+update_ast :: proc(ast: ^parser.Expr, text: string) {
+    parser.destroy_ast(ast^)
+    ok: bool
+    ast^, ok = parser.parse(text)
+}
+
+window_process_mousewheel :: proc(w: ^Window, y: i32) {
+    min_zoom :: 5
+    new_zoom := w.zoom + f32(5*y)
+    if new_zoom > min_zoom {
+        w.zoom = new_zoom
+    }
+}
+
+window_process_click :: proc(w: ^Window, asts: ^[dynamic]parser.Expr, mousepos: [2]i32) {
+    w.mousedown = true
+    if (sidebar_process_click(&w.sidebar, mousepos, asts)) {
+        w.mousedown = false
+    }
+}
+
+window_process_keydown :: proc(w: ^Window, asts: ^[dynamic]parser.Expr, sym: sdl.Keycode) {
+    #partial switch sym {
+        case .ESCAPE:
+            w.should_close = true
+        case .BACKSPACE:
+            selected := w.sidebar.selected
+            fbox := &w.sidebar.function_boxes[selected]
+            strings.pop_rune(&fbox.text)
+            function_box_update(fbox, w^)
+
+            ast := &asts[selected]
+            update_ast(ast, strings.to_string(fbox.text))
+    }
 }

@@ -46,3 +46,25 @@ power := primary ( '^' primary )*
 primary := function-call | constant | expr
 function-call := identifier ( '(' expr ')' )*
 identifier := ( 'A'..'Z' | 'a'..'z' | '_' )+
+
+## Seperating out UI
+
+- Processing events on UI
+    - window_process_click, window_process_keypress, etc.
+    - need asts so function boxes can update them
+    - could pass them in to the event processing functions, maybe as part of
+    a bigger state struct
+    - could have function boxes hold a reference to the ast but this would not
+    help removing asts from list when closing box, not to mention these would be
+    references to elements of a dynamic array
+- State struct:
+    - Name: State, Graph(maybe sub struct holding asts, color, etc.)
+    -> GraphDisplay instead, Grid
+    - dynamic array of asts
+    - might make more sense to move state from Window to this struct:
+        - sdl stuff to renderer struct
+        - viewport info to state struct
+        - Window then only contains UI elements
+- Integrating UI with model (Asts/Graphs)
+
+- When a function box's text changes we need to trigger a re-parse of the text
